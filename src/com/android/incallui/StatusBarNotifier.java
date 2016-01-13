@@ -219,7 +219,7 @@ public class StatusBarNotifier implements InCallPresenter.InCallStateListener,
         // Check if data has changed; if nothing is different, don't issue another notification.
         final int iconResId = getIconToDisplay(call);
         Bitmap largeIcon = getLargeIconToDisplay(contactInfo, call);
-        final String content = getContentString(call);
+        String content = getContentString(call);
         final String contentTitle = getContentTitle(contactInfo, call);
 
         final boolean isVideoUpgradeRequest = call.getSessionModificationState()
@@ -248,7 +248,7 @@ public class StatusBarNotifier implements InCallPresenter.InCallStateListener,
             SubscriptionInfo info =
                     SubscriptionManager.from(mContext).getActiveSubscriptionInfo(call.getSubId());
             if (info != null) {
-                contentText += " (" + info.getDisplayName() + ")";
+                content += " (" + info.getDisplayName() + ")";
             }
         }
         /*
@@ -269,7 +269,7 @@ public class StatusBarNotifier implements InCallPresenter.InCallStateListener,
         }
 
         // Set the content
-        builder.setContentText(contentText);
+        builder.setContentText(content);
         builder.setSmallIcon(iconResId);
         builder.setContentTitle(contentTitle);
         builder.setLargeIcon(largeIcon);

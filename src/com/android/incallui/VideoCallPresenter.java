@@ -67,7 +67,6 @@ import java.util.Objects;
 public class VideoCallPresenter extends Presenter<VideoCallPresenter.VideoCallUi> implements
         IncomingCallListener, InCallOrientationListener, InCallStateListener,
         InCallDetailsListener, SurfaceChangeListener, VideoEventListener,
-        InCallVideoCallCallbackNotifier.SessionModificationListener,
         InCallPresenter.InCallEventListener, InCallUiStateNotifierListener {
     public static final String TAG = "VideoCallPresenter";
 
@@ -243,10 +242,13 @@ public class VideoCallPresenter extends Presenter<VideoCallPresenter.VideoCallUi
         // Register for surface and video events from {@link InCallVideoCallListener}s.
         InCallVideoCallCallbackNotifier.getInstance().addSurfaceChangeListener(this);
         InCallVideoCallCallbackNotifier.getInstance().addVideoEventListener(this);
-        InCallVideoCallCallbackNotifier.getInstance().addSessionModificationListener(this);
         InCallUiStateNotifier.getInstance().addListener(this);
         mCurrentVideoState = VideoProfile.STATE_AUDIO_ONLY;
         mCurrentCallState = Call.State.INVALID;
+
+        final InCallPresenter.InCallState inCallState =
+             InCallPresenter.getInstance().getInCallState();
+        onStateChange(inCallState, inCallState, CallList.getInstance());
     }
 
     /**
@@ -267,7 +269,6 @@ public class VideoCallPresenter extends Presenter<VideoCallPresenter.VideoCallUi
 
         InCallVideoCallCallbackNotifier.getInstance().removeSurfaceChangeListener(this);
         InCallVideoCallCallbackNotifier.getInstance().removeVideoEventListener(this);
-        InCallVideoCallCallbackNotifier.getInstance().removeSessionModificationListener(this);
         InCallUiStateNotifier.getInstance().removeListener(this);
     }
 
@@ -625,8 +626,12 @@ public class VideoCallPresenter extends Presenter<VideoCallPresenter.VideoCallUi
     }
 
     private void checkForOrientationAllowedChange(Call call) {
-        InCallPresenter.getInstance().setInCallAllowsOrientationChange(
-                OrientationModeHandler.getInstance().getOrientation(call));
+        final int currMode = OrientationModeHandler.getInstance().getCurrentOrientationMode();
+        final int newMode = OrientationModeHandler.getInstance().getOrientation(call);
+
+        if (newMode != currMode) {
+            InCallPresenter.getInstance().setInCallAllowsOrientationChange(newMode);
+        }
     }
 
     /**
@@ -971,8 +976,14 @@ public class VideoCallPresenter extends Presenter<VideoCallPresenter.VideoCallUi
             return;
         }
 
-        mPreviewSurfaceState = PreviewSurfaceState.CAPABILITIES_RECEIVED;
         changePreviewDimensions(width, height);
+
+        if (mPreviewSurfaceState == PreviewSurfaceState.NONE) {
+            Log.w(this, "Received camera capabilities when camera is closed");
+            return;
+        }
+
+        mPreviewSurfaceState = PreviewSurfaceState.CAPABILITIES_RECEIVED;
 
         // Check if the preview surface is ready yet; if it is, set it on the {@code VideoCall}.
         // If it not yet ready, it will be set when when creation completes.
@@ -1078,51 +1089,6 @@ public class VideoCallPresenter extends Presenter<VideoCallPresenter.VideoCallUi
         ui.setPreviewRotation(mDeviceOrientation);
     }
 
-    @Override
-    public void onUpgradeToVideoRequest(Call call, int videoState) {
-        Log.d(this, "onUpgradeToVideoRequest call = " + call + " new video state = " + videoState);
-        if (mPrimaryCall == null || !Call.areSame(mPrimaryCall, call)) {
-            Log.w(this, "UpgradeToVideoRequest received for non-primary call");
-        }
-
-        if (call == null) {
-            return;
-        }
-
-        call.setSessionModificationTo(videoState);
-    }
-
-    @Override
-    public void onUpgradeToVideoSuccess(Call call) {
-        Log.d(this, "onUpgradeToVideoSuccess call=" + call);
-        if (mPrimaryCall == null || !Call.areSame(mPrimaryCall, call)) {
-            Log.w(this, "UpgradeToVideoSuccess received for non-primary call");
-        }
-
-        if (call == null) {
-            return;
-        }
-    }
-
-    @Override
-    public void onUpgradeToVideoFail(int status, Call call) {
-        Log.d(this, "onUpgradeToVideoFail call=" + call);
-        if (mPrimaryCall == null || !Call.areSame(mPrimaryCall, call)) {
-            Log.w(this, "UpgradeToVideoFail received for non-primary call");
-        }
-
-        if (call == null) {
-            return;
-        }
-    }
-
-    @Override
-    public void onDowngradeToAudio(Call call) {
-        call.setSessionModificationState(Call.SessionModificationState.NO_REQUEST);
-        // exit video mode
-        exitVideoMode();
-    }
-
     /**
      * Sets the preview surface size based on the current device orientation.
      * See: {@link InCallOrientationEventListener#SCREEN_ORIENTATION_0},
@@ -1139,18 +1105,15 @@ public class VideoCallPresenter extends Presenter<VideoCallPresenter.VideoCallUi
             return;
         }
 
-        int height;
-        int width;
+        final int adjustedDimension = (int) (mMinimumVideoDimension * aspectRatio);
+        final int min = (int) Math.min(mMinimumVideoDimension, adjustedDimension);
+        final int max = (int) Math.max(mMinimumVideoDimension, adjustedDimension);
 
-        if (orientation == InCallOrientationEventListener.SCREEN_ORIENTATION_90 ||
-                orientation == InCallOrientationEventListener.SCREEN_ORIENTATION_270) {
-            width = (int) (mMinimumVideoDimension * aspectRatio);
-            height = (int) mMinimumVideoDimension;
-        } else {
-            // Portrait or reverse portrait orientation.
-            width = (int) mMinimumVideoDimension;
-            height = (int) (mMinimumVideoDimension * aspectRatio);
-        }
+        // When orientation is dynamic (CVO), we dynamically rotate the camera preview, hence
+        // here we make sure that the height of the preview is always greater than the width.
+        int height = max;
+        int width = min;
+
         ui.setPreviewSize(width, height);
     }
 

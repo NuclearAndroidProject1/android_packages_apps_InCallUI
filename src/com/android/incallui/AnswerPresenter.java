@@ -23,6 +23,7 @@ import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.provider.Settings;
 
 import com.android.dialer.util.TelecomUtil;
 import com.android.incallui.InCallPresenter.InCallState;
@@ -33,6 +34,7 @@ import java.util.List;
 
 import org.codeaurora.ims.qtiims.IQtiImsInterface;
 import org.codeaurora.ims.qtiims.IQtiImsInterfaceListener;
+import org.codeaurora.ims.qtiims.QtiImsInterfaceListenerBaseImpl;
 import org.codeaurora.ims.qtiims.QtiImsInterfaceUtils;
 import org.codeaurora.ims.qtiims.QtiViceInfo;
 import org.codeaurora.QtiVideoCallConstants;
@@ -95,31 +97,12 @@ public class AnswerPresenter extends Presenter<AnswerPresenter.AnswerUi>
         }
     };
 
-    /* IQtiImsInterfaceListener instance to handle call deflection response */
-    private IQtiImsInterfaceListener imsInterfaceListener = new IQtiImsInterfaceListener.Stub() {
-        public void onSetCallForwardUncondTimer(int status) {
-            /* Not implemented, dummy implementation to avoid compilation errors */
-        }
-
-        public void onGetCallForwardUncondTimer(int startHour, int endHour,
-                int startMinute, int endMinute, int reason, int status,
-                String number, int serviceClass) {
-            /* Not implemented, dummy implementation to avoid compilation errors */
-        }
-
-        public void onUTReqFailed(int errCode, String errString) {
-            /* Not implemented, dummy implementation to avoid compilation errors */
-        }
-
-        public void onGetPacketCount(int status, long packetCount) {
-            /* Not implemented, dummy implementation to avoid compilation errors */
-        }
-
-        public void onGetPacketErrorCount(int status, long packetErrorCount) {
-            /* Not implemented, dummy implementation to avoid compilation errors */
-        }
+    /* QtiImsInterfaceListenerBaseImpl instance to handle call deflection response */
+    private QtiImsInterfaceListenerBaseImpl imsInterfaceListener =
+            new QtiImsInterfaceListenerBaseImpl() {
 
         /* Handles call deflect response */
+        @Override
         public void receiveCallDeflectResponse(int result) {
             Log.w(this, "receiveCallDeflectResponse: " + result);
         }
@@ -254,7 +237,7 @@ public class AnswerPresenter extends Presenter<AnswerPresenter.AnswerUi>
             showAnswerUi(false);
             Log.d(this, "declining upgrade request id: ");
             mCalls.removeCallUpdateListener(mCallId[phoneId], this);
-            InCallPresenter.getInstance().declineUpgradeRequest(getUi().getContext());
+            InCallPresenter.getInstance().declineUpgradeRequest();
         }
         if (!call.getId().equals(mCallId[phoneId])) {
             // A new call is coming in.
@@ -272,7 +255,11 @@ public class AnswerPresenter extends Presenter<AnswerPresenter.AnswerUi>
 
     @Override
     public void onDisconnect(Call call) {
-        // no-op
+        int subId = call.getSubId();
+        int phoneId = mCalls.getPhoneId(subId);
+        if (call.equals(mCall[phoneId])) {
+            mCall[phoneId] = null;
+        }
     }
 
     public void onSessionModificationStateChange(int sessionModificationState) {
@@ -327,7 +314,7 @@ public class AnswerPresenter extends Presenter<AnswerPresenter.AnswerUi>
         int phoneId = mCalls.getPhoneId(subId);
         mCallId[phoneId] = call.getId();
         mCall[phoneId] = call;
-
+        mCalls.addListener(this);
         // Listen for call updates for the current call.
         mCalls.addCallUpdateListener(mCallId[phoneId], this);
 
@@ -532,7 +519,7 @@ public class AnswerPresenter extends Presenter<AnswerPresenter.AnswerUi>
                 getUi().showTargets(QtiCallUtils.getIncomingCallAnswerOptions(
                         getUi().getContext(), withSms));
             }
-        } else if (isCallDeflectSupported(call.getExtras())) {
+        } else if (isCallDeflectSupported()) {
             /**
              * Only present the user with the option to deflect call,
              * if the incoming call is only an audio call.
@@ -554,12 +541,19 @@ public class AnswerPresenter extends Presenter<AnswerPresenter.AnswerUi>
     }
 
     /**
-     * Checks the call extra to conclude on the call deflect support.
+     * Checks the Settings to conclude on the call deflect support.
      * Returns true if call deflect is possible, false otherwise.
      */
-    public boolean isCallDeflectSupported(Bundle extras) {
-        return (extras != null) &&
-               extras.getBoolean(QtiImsInterfaceUtils.QTI_IMS_DEFLECT_EXTRA_KEY, false);
+    public boolean isCallDeflectSupported() {
+        int value = 0;
+        try{
+            value = android.provider.Settings.Global.getInt(
+                              getUi().getContext().getContentResolver(),
+                              QtiImsInterfaceUtils.QTI_IMS_DEFLECT_ENABLED);
+        } catch(Settings.SettingNotFoundException e) {
+            //do Nothing
+        }
+        return (value == 1);
     }
 
     interface AnswerUi extends Ui {
