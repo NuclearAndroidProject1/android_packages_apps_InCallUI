@@ -33,7 +33,6 @@ import android.view.Display;
 import com.android.incallui.AudioModeProvider.AudioModeListener;
 import com.android.incallui.InCallPresenter.InCallState;
 import com.android.incallui.InCallPresenter.InCallStateListener;
-
 import com.android.services.telephony.common.AudioMode;
 import com.google.common.base.Objects;
 
@@ -46,8 +45,10 @@ import com.google.common.base.Objects;
  * sensor should be enabled and disabled. Most of that state is fed into this class through
  * public methods.
  */
+
 public class ProximitySensor implements AccelerometerListener.OrientationListener,
         InCallStateListener, AudioModeListener, SensorEventListener {
+
     private static final String TAG = ProximitySensor.class.getSimpleName();
 
     private final PowerManager mPowerManager;
@@ -66,6 +67,7 @@ public class ProximitySensor implements AccelerometerListener.OrientationListene
     private boolean mIsProxSensorFar = true;
     private int mProxSpeakerDelay = 100;
     private boolean mDialpadVisible;
+
     private Context mContext;
 
     private final Handler mHandler = new Handler();
@@ -76,14 +78,13 @@ public class ProximitySensor implements AccelerometerListener.OrientationListene
         }
     };
 
-
     // True if the keyboard is currently *not* hidden
     // Gets updated whenever there is a Configuration change
     private boolean mIsHardKeyboardOpen;
 
     public ProximitySensor(Context context, AudioModeProvider audioModeProvider,
             AccelerometerListener accelerometerListener) {
-	mContext = context;
+        mContext = context;
         mPowerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
 
         if (mPowerManager.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
@@ -148,8 +149,7 @@ public class ProximitySensor implements AccelerometerListener.OrientationListene
         // can also put the in-call screen in the INCALL state.
         boolean hasOngoingCall = InCallState.INCALL == newState && callList.hasLiveCall();
         boolean isOffhook = (InCallState.OUTGOING == newState) || hasOngoingCall;
-	mHasIncomingCall = (InCallState.INCOMING == newState);
-
+        mHasIncomingCall = (InCallState.INCOMING == newState);
         mIsPhoneOutgoing = (InCallState.OUTGOING == newState);
 
         if (isOffhook != mIsPhoneOffhook) {
@@ -197,8 +197,8 @@ public class ProximitySensor implements AccelerometerListener.OrientationListene
         } else {
             mIsProxSensorFar = true;
         }
-        
- 	setProxSpeaker(mIsProxSensorFar);
+
+        setProxSpeaker(mIsProxSensorFar);
     }
 
     @Override
@@ -304,8 +304,6 @@ public class ProximitySensor implements AccelerometerListener.OrientationListene
                     || CallAudioState.ROUTE_SPEAKER == audioMode
                     || CallAudioState.ROUTE_BLUETOOTH == audioMode
                     || mIsHardKeyboardOpen);
-            screenOnImmediately |= Settings.System.getInt(mContext.getContentResolver(),
-                    Settings.System.IN_CALL_PROXIMITY_SENSOR, 1) == 0;
 
             // We do not keep the screen off when the user is outside in-call screen and we are
             // horizontal, but we do not force it on when we become horizontal until the
@@ -331,7 +329,7 @@ public class ProximitySensor implements AccelerometerListener.OrientationListene
                     .add("aud", CallAudioState.audioRouteToString(audioMode))
                     .toString());
 
-	   if ((mIsPhoneOffhook || mHasIncomingCall) && !screenOnImmediately) {
+            if ((mIsPhoneOffhook || mHasIncomingCall) && !screenOnImmediately) {
                 Log.d(this, "Turning on proximity sensor");
                 // Phone is in use!  Arrange for the screen to turn off
                 // automatically when the sensor detects a close object.
@@ -358,12 +356,11 @@ public class ProximitySensor implements AccelerometerListener.OrientationListene
     private void setProxSpeaker(final boolean speaker) {
         // remove any pending audio changes scheduled
         mHandler.removeCallbacks(mActivateSpeaker);
- 
+
         final int audioMode = mAudioModeProvider.getAudioMode();
         final boolean proxSpeakerIncallOnlyPref =
                 (Settings.System.getInt(mContext.getContentResolver(),
                 Settings.System.PROXIMITY_AUTO_SPEAKER_INCALL_ONLY, 0) == 1);
-
         mProxSpeakerDelay = Settings.System.getInt(mContext.getContentResolver(),
                 Settings.System.PROXIMITY_AUTO_SPEAKER_DELAY, 100);
 

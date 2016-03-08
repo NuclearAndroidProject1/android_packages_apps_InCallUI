@@ -243,7 +243,6 @@ public class StatusBarNotifier implements InCallPresenter.InCallStateListener,
         }
 
         // set the content
-        String contentText = content;
         if (TelephonyManager.getDefault().isMultiSimEnabled()) {
             SubscriptionInfo info =
                     SubscriptionManager.from(mContext).getActiveSubscriptionInfo(call.getSubId());
